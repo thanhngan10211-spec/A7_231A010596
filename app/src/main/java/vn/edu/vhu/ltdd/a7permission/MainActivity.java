@@ -83,6 +83,26 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(this, R.string.photo_cancelled, Toast.LENGTH_SHORT).show();
                 }
             });
+    private final ActivityResultLauncher<String[]> xinNhieuQuyen = registerForActivityResult(
+            new ActivityResultContracts.RequestMultiplePermissions(),
+            result -> {
+                // Kiểm tra trạng thái của từng quyền thông qua Key trong Map
+                Boolean cameraGranted = result.get(Manifest.permission.CAMERA);
+                Boolean notiGranted = result.get(Manifest.permission.POST_NOTIFICATIONS);
+
+                if (cameraGranted != null && cameraGranted) {
+                    Toast.makeText(this, "Quyền Camera đã được cấp!", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Quyền Camera bị từ chối!", Toast.LENGTH_SHORT).show();
+                }
+
+                if (notiGranted != null && notiGranted) {
+                    Toast.makeText(this, "Quyền Thông báo đã được cấp!", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Quyền Thông báo bị từ chối!", Toast.LENGTH_SHORT).show();
+                }
+            }
+    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -106,15 +126,19 @@ public class MainActivity extends AppCompatActivity {
         btnChupAnh.setOnClickListener(v -> kiemTraRoiChup());
         btnThongBao.setOnClickListener(v -> kiemTraRoiGuiThongBao());
         btnCaiDat.setOnClickListener(v -> moCaiDatUngDung());
+        // Gọi yêu cầu cấp nhiều quyền cùng lúc
+        xinNhieuQuyen.launch(new String[]{
+                Manifest.permission.CAMERA,
+                Manifest.permission.POST_NOTIFICATIONS
+        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        capNhatTrangThai();   // người dùng có thể vừa đổi quyền trong Cài đặt rồi quay lại
+        capNhatTrangThai();
     }
 
-    // =====================  LUỒNG XIN QUYỀN CAMERA  =====================
 
     /** Mẫu chuẩn 3 nhánh mà Google khuyến nghị. */
     private void kiemTraRoiChup() {
