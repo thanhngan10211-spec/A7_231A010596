@@ -3,6 +3,7 @@ package vn.edu.vhu.ltdd.a7permission;
 import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -30,7 +31,6 @@ import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends AppCompatActivity {
 
-    // TODO: thay 2201234567 bằng MSSV của bạn
     private static final String TAG = "A7_231A010596";
 
     private static final String CHANNEL_ID = "a7_channel";
@@ -39,11 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageView imgAnh;
     private TextView tvTrangThai;
 
-    // ---------------------------------------------------------------
     // 1) Bộ xin quyền CAMERA.
-    //    registerForActivityResult phải được gọi TRƯỚC khi Activity ở trạng thái
-    //    STARTED, nên ta khai báo ở cấp field (chạy trong constructor).
-    // ---------------------------------------------------------------
     private final ActivityResultLauncher<String> xinQuyenCamera = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(),
             duocCap -> {
@@ -51,16 +47,13 @@ public class MainActivity extends AppCompatActivity {
                 if (duocCap) {
                     moCamera();
                 } else if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
-                    // Trạng thái 2: từ chối nhưng còn hỏi lại được
                     hienGiaiThich();
                 } else {
-                    // Trạng thái 3: đã chọn "Không cho phép" nhiều lần → hệ thống không
-                    // hiện hộp thoại nữa, chỉ còn cách vào Cài đặt
                     hienMoCaiDat();
                 }
             });
 
-    // 2) Bộ xin quyền POST_NOTIFICATIONS (chỉ cần từ Android 13 / API 33)
+    // 2) Bộ xin quyền POST_NOTIFICATIONS
     private final ActivityResultLauncher<String> xinQuyenThongBao = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(),
             duocCap -> {
@@ -71,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-    // 3) Bộ mở Camera lấy ảnh xem trước (bitmap thu nhỏ, không cần lưu file)
+    // 3) Bộ mở Camera lấy ảnh xem trước
     private final ActivityResultLauncher<Void> chupAnh = registerForActivityResult(
             new ActivityResultContracts.TakePicturePreview(),
             (Bitmap bitmap) -> {
@@ -83,10 +76,11 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(this, R.string.photo_cancelled, Toast.LENGTH_SHORT).show();
                 }
             });
+
+    // 4) Bộ xin nhiều quyền (NC1)
     private final ActivityResultLauncher<String[]> xinNhieuQuyen = registerForActivityResult(
             new ActivityResultContracts.RequestMultiplePermissions(),
             result -> {
-                // Kiểm tra trạng thái của từng quyền thông qua Key trong Map
                 Boolean cameraGranted = result.get(Manifest.permission.CAMERA);
                 Boolean notiGranted = result.get(Manifest.permission.POST_NOTIFICATIONS);
 
@@ -126,11 +120,6 @@ public class MainActivity extends AppCompatActivity {
         btnChupAnh.setOnClickListener(v -> kiemTraRoiChup());
         btnThongBao.setOnClickListener(v -> kiemTraRoiGuiThongBao());
         btnCaiDat.setOnClickListener(v -> moCaiDatUngDung());
-        // Gọi yêu cầu cấp nhiều quyền cùng lúc
-        xinNhieuQuyen.launch(new String[]{
-                Manifest.permission.CAMERA,
-                Manifest.permission.POST_NOTIFICATIONS
-        });
     }
 
     @Override
@@ -139,19 +128,14 @@ public class MainActivity extends AppCompatActivity {
         capNhatTrangThai();
     }
 
-
-    /** Mẫu chuẩn 3 nhánh mà Google khuyến nghị. */
     private void kiemTraRoiChup() {
         int trangThai = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
 
         if (trangThai == PackageManager.PERMISSION_GRANTED) {
-            // Nhánh 1: đã có quyền → dùng ngay
             moCamera();
         } else if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
-            // Nhánh 2: đã từng từ chối → giải thích lý do trước khi hỏi lại
             hienGiaiThich();
         } else {
-            // Nhánh 3: lần đầu (hoặc đã bị chặn vĩnh viễn) → gọi thẳng hộp thoại hệ thống
             xinQuyenCamera.launch(Manifest.permission.CAMERA);
         }
     }
@@ -179,13 +163,11 @@ public class MainActivity extends AppCompatActivity {
         chupAnh.launch(null);
     }
 
-    /** Mở đúng trang thông tin ứng dụng của app này trong Cài đặt. */
     private void moCaiDatUngDung() {
         Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         i.setData(Uri.fromParts("package", getPackageName(), null));
         startActivity(i);
     }
-
 
     private void kiemTraRoiGuiThongBao() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -210,21 +192,29 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Hàm gửi thông báo tích hợp NC3 (Bấm vào thông báo mở lại app)
     private void guiThongBao() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this, 0, intent, PendingIntent.FLAG_IMMUTABLE
+        );
+
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(getString(R.string.noti_title))
                 .setContentText(getString(R.string.noti_text))
+                .setContentIntent(pendingIntent)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true);
+
         try {
             NotificationManagerCompat.from(this).notify(NOTI_ID, b.build());
         } catch (SecurityException e) {
-            // Người dùng vừa tắt quyền ở Cài đặt trong lúc app đang chạy
             Log.w(TAG, "Thiếu quyền gửi thông báo", e);
         }
     }
-
 
     private void capNhatTrangThai() {
         boolean camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
